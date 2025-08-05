@@ -1,0 +1,6 @@
+pandas
+requests
+pyyaml
+aiohttp
+aiofiles
+asyncio
