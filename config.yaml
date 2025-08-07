@@ -2,24 +2,24 @@
 
 # Base settings
 base_url: "https://data.binance.vision/data/futures/um/daily/"
-output_directory: "./data"
+output_directory: "../data"
 log_directory: "./logs"
 
 # Time range settings
 time_range:
-  start_date: "2025-01-01" # Format: YYYY-MM-DD
-  end_date: "2025-01-02" # Format: YYYY-MM-DD or "latest" for current date
+  start_date: "2024-01-01" # Format: YYYY-MM-DD
+  end_date: "2025-08-04" # Format: YYYY-MM-DD or "latest" for current date
 
 # Data types to download
 data_types:
-  aggTrades: true
-  bookDepth: false
+  aggTrades: false
+  bookDepth: true
   bookTicker: false
   indexPriceKlines: true
   klines: true
-  markPriceKlines: false
-  metrics: false
-  premiumIndexKlines: false
+  markPriceKlines: true
+  metrics: true
+  premiumIndexKlines: true
   trades: false
 
 # Klines intervals (only applies to klines, indexPriceKlines, markPriceKlines, premiumIndexKlines)
@@ -31,19 +31,17 @@ kline_intervals:
 
 # Trading pairs
 trading_pairs:
-  - "BTCUSDT"
   # Leave empty to download all available pairs from Binance API
   # Or specify specific pairs like:
   # - "BTCUSDT"
-  # - "ETHUSDT"
   # - "ADAUSDT"
 
 # Download settings
 download:
-  max_concurrent_downloads: 16
+  max_concurrent_downloads: 128
   retry_attempts: 3
   retry_delay: 5 # seconds
-  rate_limit_delay: 0.1 # seconds between requests
+  max_requests_per_second: 60.0 # QPS limit (replaces rate_limit_delay)
   chunk_size: 8192 # bytes for download streaming
 
 # File processing
@@ -51,6 +49,7 @@ file_processing:
   auto_extract: true
   delete_zip_after_extract: true
   overwrite_existing: false # Skip if CSV already exists (resume functionality)
+  min_file_size: 10 # Minimum file size in bytes to consider complete
 
 # Logging
 logging:
@@ -59,3 +58,7 @@ logging:
   file_output: true
   max_log_file_size: "100MB"
   backup_count: 5
+
+# UI settings
+ui:
+  progress_bar_width: 100 # Progress bar width in characters

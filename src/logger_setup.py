@@ -3,10 +3,21 @@ import os
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
+# Global logger instance to prevent duplicate initialization
+_logger_initialized = False
+_logger_instance = None
+
+
 def setup_logger(config):
     """
-    Setup logging configuration based on config settings
+    Setup logging configuration based on config settings (singleton pattern)
     """
+    global _logger_initialized, _logger_instance
+    
+    # If logger already initialized, return existing instance
+    if _logger_initialized and _logger_instance:
+        return _logger_instance
+    
     # Create logs directory if it doesn't exist
     log_dir = config.get('log_directory', './logs')
     os.makedirs(log_dir, exist_ok=True)
@@ -29,7 +40,7 @@ def setup_logger(config):
     logger = logging.getLogger('binance_downloader')
     logger.setLevel(log_level)
     
-    # Clear existing handlers
+    # Clear existing handlers to prevent duplicates
     logger.handlers.clear()
     
     # Create formatter
@@ -38,16 +49,24 @@ def setup_logger(config):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # Console handler
+    # Console handler - only show INFO and above, suppress WARNING
     if console_output:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(log_level)
+        # Set console to only show ERROR and CRITICAL (suppress WARNING)
+        console_handler.setLevel(logging.ERROR)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+        
+        # Separate console handler for INFO messages only
+        info_console_handler = logging.StreamHandler()
+        info_console_handler.setLevel(logging.INFO)
+        info_console_handler.addFilter(lambda record: record.levelno == logging.INFO)
+        info_console_handler.setFormatter(formatter)
+        logger.addHandler(info_console_handler)
     
-    # Main log file handler with rotation
+    # Main log file handler with rotation (fixed filename)
     if file_output:
-        log_filename = os.path.join(log_dir, f'binance_downloader_{datetime.now().strftime("%Y%m%d")}.log')
+        log_filename = os.path.join(log_dir, 'binance_downloader.log')
         file_handler = RotatingFileHandler(
             log_filename,
             maxBytes=max_bytes,
@@ -58,8 +77,8 @@ def setup_logger(config):
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
-        # Separate error log handler
-        error_log_filename = os.path.join(log_dir, f'binance_downloader_errors_{datetime.now().strftime("%Y%m%d")}.log')
+        # Separate error log handler (fixed filename)
+        error_log_filename = os.path.join(log_dir, 'binance_downloader_errors.log')
         error_handler = RotatingFileHandler(
             error_log_filename,
             maxBytes=max_bytes,
@@ -70,10 +89,29 @@ def setup_logger(config):
         error_handler.setFormatter(formatter)
         logger.addHandler(error_handler)
     
+    # Mark as initialized and store instance
+    _logger_initialized = True
+    _logger_instance = logger
+    
     return logger
+
 
 def get_logger():
     """
     Get the configured logger instance
     """
-    return logging.getLogger('binance_downloader')
+    global _logger_instance
+    if _logger_instance:
+        return _logger_instance
+    else:
+        # If not initialized, return a basic logger
+        return logging.getLogger('binance_downloader')
+
+
+def reset_logger():
+    """
+    Reset logger for testing purposes
+    """
+    global _logger_initialized, _logger_instance
+    _logger_initialized = False
+    _logger_instance = None
