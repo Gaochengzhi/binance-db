@@ -37,7 +37,7 @@ data_types:
   trades: true
   premiumIndexKlines: true
 
-# K线时间间隔
+# 可选K线时间间隔
 kline_intervals:
   - "1d"
   - "4h"  
@@ -48,6 +48,7 @@ kline_intervals:
 
 # 交易对
 trading_pairs:
+# 留空就是下载所有
   - "BTCUSDT"
   - "ETHUSDT"
   - "BNBUSDT"
@@ -116,10 +117,10 @@ python csv2duckdb.py status         # 显示数据状态
 
 ```
 data/
-├── aggTrades/
+├── bookDepth/
 │   ├── BTCUSDT/
-│   │   ├── BTCUSDT-aggTrades-2025-01-01.csv
-│   │   ├── BTCUSDT-aggTrades-2025-01-02.csv
+│   │   ├── BTCUSDT-bookDepth-2025-01-01.csv
+│   │   ├── BTCUSDT-bookDepth-2025-01-02.csv
 │   │   └── ...
 │   ├── ETHUSDT/
 │   └── BNBUSDT/
@@ -135,8 +136,7 @@ data/
 │   │   │   ├── BTCUSDT-1h-2025-01-01.csv
 │   │   │   └── BTCUSDT-1h-2025-01-02.csv
 │   │   ├── 15m/
-│   │   ├── 5m/
-│   │   └── 1m/
+│   │   │   └── ...
 │   ├── ETHUSDT/
 │   └── BNBUSDT/
 ├── indexPriceKlines/
@@ -144,14 +144,12 @@ data/
 │   │   ├── 1d/
 │   │   ├── 4h/
 │   │   └── 1h/
+│   │   └── 15m/
 │   ├── ETHUSDT/
 │   └── BNBUSDT/
 ├── markPriceKlines/
 ├── premiumIndexKlines/
-├── bookDepth/
-├── bookTicker/
 ├── metrics/
-└── trades/
 ```
 
 ### 优化后的 Parquet 数据结构
@@ -171,8 +169,6 @@ binance_parquet/
 │   │   └── date=2025-08-02/
 │   ├── interval=1h/
 │   ├── interval=15m/
-│   ├── interval=5m/
-│   └── interval=1m/
 ├── indexPriceKlines/
 │   ├── interval=1d/
 │   │   └── date=2025-08-01/
@@ -185,8 +181,6 @@ binance_parquet/
 │       ├── symbol=BTCUSDT.parquet
 │       ├── symbol=ETHUSDT.parquet
 │       └── symbol=BNBUSDT.parquet
-├── bookTicker/
-├── aggTrades/
 ├── trades/
 ├── metrics/
 └── binance.duckdb                    # 带有优化视图的 DuckDB 数据库
@@ -212,35 +206,81 @@ binance_parquet/
 
 ## CSV 文件格式
 
-### aggTrades
-```
-agg_trade_id,price,quantity,first_trade_id,last_trade_id,transact_time,is_buyer_maker
-```
+所有CSV文件采用横向表格格式，每行为一条记录。以下是各数据类型的详细字段说明：
 
-### klines/indexPriceKlines/markPriceKlines/premiumIndexKlines
-```
-open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore
-```
+### K线数据 (klines/indexPriceKlines/markPriceKlines/premiumIndexKlines)
 
-### trades
-```
-id,price,qty,quote_qty,time,is_buyer_maker
-```
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| open_time | long | 开盘时间戳（毫秒） |
+| open | decimal | 开盘价格 |
+| high | decimal | 最高价格 |
+| low | decimal | 最低价格 |
+| close | decimal | 收盘价格 |
+| volume | decimal | 成交量 |
+| close_time | long | 收盘时间戳（毫秒） |
+| quote_volume | decimal | 成交额（报价资产） |
+| count | int | 成交笔数 |
+| taker_buy_volume | decimal | 主动买入成交量（基础资产） |
+| taker_buy_quote_volume | decimal | 主动买入成交额（报价资产） |
+| ignore | int | 忽略字段（通常为0） |
 
-### bookTicker
-```
-update_id,best_bid_price,best_bid_qty,best_ask_price,best_ask_qty,transaction_time,event_time
-```
+### 聚合交易数据 (aggTrades)
 
-### bookDepth
-```
-timestamp,percentage,depth,notional
-```
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| agg_trade_id | long | 聚合交易ID |
+| price | decimal | 成交价格 |
+| quantity | decimal | 成交数量 |
+| first_trade_id | long | 首个交易ID |
+| last_trade_id | long | 末个交易ID |
+| transact_time | long | 成交时间戳（毫秒） |
+| is_buyer_maker | boolean | 买方是否为挂单方 |
 
-### metrics
-```
-create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio
-```
+### 单笔交易数据 (trades)
+
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| id | long | 交易ID |
+| price | decimal | 成交价格 |
+| qty | decimal | 成交数量 |
+| quote_qty | decimal | 成交金额 |
+| time | long | 成交时间戳（毫秒） |
+| is_buyer_maker | boolean | 买方是否为挂单方 |
+
+### 最优挂单 (bookTicker)
+
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| update_id | long | 更新ID |
+| best_bid_price | decimal | 最优买价 |
+| best_bid_qty | decimal | 最优买量 |
+| best_ask_price | decimal | 最优卖价 |
+| best_ask_qty | decimal | 最优卖量 |
+| transaction_time | long | 交易时间戳（毫秒） |
+| event_time | long | 事件时间戳（毫秒） |
+
+### 订单簿深度 (bookDepth)
+
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| timestamp | datetime | 时间戳 |
+| percentage | float | 价格偏离百分比 |
+| depth | decimal | 累计挂单数量 |
+| notional | decimal | 累计挂单金额 |
+
+### 交易指标 (metrics)
+
+| 字段名 | 数据类型 | 说明 |
+|--------|----------|------|
+| create_time | datetime | 创建时间 |
+| symbol | string | 交易对符号 |
+| sum_open_interest | decimal | 总持仓量 |
+| sum_open_interest_value | decimal | 总持仓价值 |
+| count_toptrader_long_short_ratio | decimal | 大户多空比例计数 |
+| sum_toptrader_long_short_ratio | decimal | 大户多空比例总和 |
+| count_long_short_ratio | decimal | 账户多空比例计数 |
+| sum_taker_long_short_vol_ratio | decimal | 主动成交多空比例总和 |
 
 ## ETL 性能特性
 
@@ -250,15 +290,7 @@ create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_lon
 - **对象缓存**: 启用 DuckDB 内置查询结果缓存
 - **直接文件访问**: 绕过视图以获得最大性能
 
-### 性能测试模式
-ETL 工具包含 4 种查询模式的综合性能测试：
 
-| 查询类型           | 描述                     | 使用场景       |
-| ------------------ | ------------------------ | -------------- |
-| **全盘短时间扫描** | 短时间窗口内扫描所有符号 | 数据密集型分析 |
-| **单符号长时序**   | 单个符号的长时间序列     | 时间序列分析   |
-| **热门符号扫描**   | 短时间内的多个热门符号   | 重点市场分析   |
-| **交易量统计**     | 聚合交易量排名           | 市场概览       |
 
 ### DuckDB 查询 API
 ```python
@@ -278,4 +310,62 @@ stats = db.scan_aggregated(start_ts, end_ts, symbols=['BTCUSDT'])
 # 交易量排名
 top_vol = db.scan_top_volume(start_ts, end_ts, limit=10)
 ```
+
+## 数据更新策略
+
+### 增量数据更新
+
+当新的CSV数据到达时，ETL工具支持多种数据更新方式：
+
+#### 1. 自动增量更新（推荐）
+```bash
+# 运行ETL转换，自动跳过已存在的文件
+python csv2duckdb.py etl
+```
+
+#### 2. 强制覆盖更新
+如需重新处理某些文件，手动删除对应的Parquet文件后重新运行ETL：
+```bash
+# 删除特定日期的数据
+rm -rf /data/binance_data/binance_parquet/klines/interval=15m/date=2025-08-01/
+
+# 重新转换
+python csv2duckdb.py etl
+```
+
+#### 3. 清理损坏文件
+定期运行清理命令确保数据完整性：
+```bash
+python csv2duckdb.py cleanup
+```
+
+#### 4. 更新DuckDB视图
+当添加新的数据类型或修改分区结构后，需要重新初始化DuckDB视图：
+```bash
+python csv2duckdb.py init
+```
+
+### 数据一致性保证
+
+- **原子性写入**: 使用临时文件确保写入过程的原子性
+- **完整性检查**: 自动验证Parquet文件完整性，删除损坏文件
+- **断点续传**: 跳过已存在且有效的文件，支持中断后继续处理
+- **分区管理**: 按日期和符号分区，便于增量更新和查询优化
+
+### 性能基准
+- **查询优化**: 比原始基于视图的查询快 10-50 倍
+- **分区裁剪**: 只扫描相关文件而非完整数据集
+- **内存效率**: 通过受控内存使用处理大型数据集
+- **并行处理**: 多线程 ETL 转换和并发查询
+
+## 许可证
+
+本项目采用 **MIT License with Commercial Use Restriction** 许可证：
+
+- ✅ **个人使用**: 完全免费，包括学习、研究、个人项目
+- ✅ **学术研究**: 支持教育机构和非营利研究
+- ✅ **开源贡献**: 欢迎社区参与和改进
+- ❌ **商业使用**: 组织和公司需要获得明确授权
+
+详细条款请参阅 [LICENSE](LICENSE) 文件。如需商业使用，请联系作者获取授权。
 

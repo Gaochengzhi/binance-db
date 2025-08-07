@@ -1,4 +1,12 @@
-# etl_binance.py
+# csv2duckdb.py - Binance Data ETL Tool
+# 
+# Copyright (c) 2025 Gaochengzhi
+# Licensed under MIT License with Commercial Use Restriction
+# 
+# This software is free for personal and research use.
+# Commercial use by organizations requires explicit permission.
+# See LICENSE file for details.
+#
 import duckdb, pathlib, os, re
 from multiprocessing import Pool
 import pyarrow.csv as pv

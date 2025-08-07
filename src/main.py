@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
 Enhanced main entry point with file-level tasks and improved progress tracking
+
+Copyright (c) 2025 Gaochengzhi
+Licensed under MIT License with Commercial Use Restriction
+
+This software is free for personal and research use.
+Commercial use by organizations requires explicit permission.
+See LICENSE file for details.
 """
 
 import sys
