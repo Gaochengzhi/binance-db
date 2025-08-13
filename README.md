@@ -54,29 +54,50 @@ trading_pairs:
   - "BNBUSDT"
 
 # 下载设置
-download_settings:
-  max_concurrent_downloads: 5    # 并发下载数量
-  retry_attempts: 3              # 失败重试次数  
-  retry_delay: 2                 # 重试间隔（秒）
-  rate_limit_delay: 0.1          # 请求限速间隔
-  auto_extract: true             # 自动解压 ZIP 文件
-  delete_zip_after_extract: true # 解压后删除 ZIP 文件
-  overwrite_existing: false      # 跳过已存在文件（断点续传）
+download:
+  max_concurrent_downloads: 64      # 并发下载数量
+  retry_attempts: 3                 # 失败重试次数  
+  retry_delay: 5                    # 重试间隔（秒）
+  max_requests_per_second: 30.0     # QPS限制（取代rate_limit_delay）
+  chunk_size: 8192                  # 下载流式传输的字节块大小
+
+# 文件处理
+file_processing:
+  auto_extract: true                # 自动解压 ZIP 文件
+  delete_zip_after_extract: true   # 解压后删除 ZIP 文件
+  overwrite_existing: false        # 跳过已存在文件（断点续传）
+  min_file_size: 10                 # 最小文件大小（字节）
+
+# 日志配置
+logging:
+  level: "INFO"                     # DEBUG, INFO, WARNING, ERROR
+  console_output: true
+  file_output: true
+  max_log_file_size: "100MB"
+  backup_count: 5
+
+# UI设置
+ui:
+  progress_bar_width: 100           # 进度条宽度（字符数）
 ```
 
 ### ETL 工具配置
 
-编辑 `csv2duckdb.py` 中的配置段：
+ETL 工具现在从 `config.yaml` 自动读取配置，不需要手动修改代码：
 
 ```python
 # ============================================================================
-# 📋 用户配置区域 - 请根据你的环境修改以下路径
+# 📋 配置自动从 config.yaml 读取
 # ============================================================================
-DATA_PATH = "/data/binance_data/binance_parquet"         # Parquet输出目录
-SRC_DIR   = pathlib.Path("/data/binance_data")           # CSV源数据目录
-DUCK_DB   = "/data/binance_data/binance.duckdb"          # DuckDB数据库文件
-LOG_DIR   = "logs"                                       # 日志文件目录
-CPU       = os.cpu_count()                               # CPU核心数
+config = load_config()
+
+# 从config.yaml读取配置
+output_dir = pathlib.Path(config["output_directory"]).expanduser().absolute()  # 处理~和相对路径，但保留软链接
+DATA_PATH = str(output_dir / "binance_parquet")  # Parquet输出目录
+SRC_DIR = output_dir                             # CSV源数据目录  
+DUCK_DB = str(output_dir / "binance.duckdb")     # DuckDB数据库文件
+LOG_DIR = config["log_directory"]                           # 日志文件目录
+CPU = os.cpu_count()                                        # CPU核心数
 
 # ============================================================================
 # 🧪 测试配置区域 - 性能测试参数
@@ -210,77 +231,77 @@ binance_parquet/
 
 ### K线数据 (klines/indexPriceKlines/markPriceKlines/premiumIndexKlines)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| open_time | long | 开盘时间戳（毫秒） |
-| open | decimal | 开盘价格 |
-| high | decimal | 最高价格 |
-| low | decimal | 最低价格 |
-| close | decimal | 收盘价格 |
-| volume | decimal | 成交量 |
-| close_time | long | 收盘时间戳（毫秒） |
-| quote_volume | decimal | 成交额（报价资产） |
-| count | int | 成交笔数 |
-| taker_buy_volume | decimal | 主动买入成交量（基础资产） |
-| taker_buy_quote_volume | decimal | 主动买入成交额（报价资产） |
-| ignore | int | 忽略字段（通常为0） |
+| 字段名                 | 数据类型 | 说明                       |
+| ---------------------- | -------- | -------------------------- |
+| open_time              | long     | 开盘时间戳（毫秒）         |
+| open                   | decimal  | 开盘价格                   |
+| high                   | decimal  | 最高价格                   |
+| low                    | decimal  | 最低价格                   |
+| close                  | decimal  | 收盘价格                   |
+| volume                 | decimal  | 成交量                     |
+| close_time             | long     | 收盘时间戳（毫秒）         |
+| quote_volume           | decimal  | 成交额（报价资产）         |
+| count                  | int      | 成交笔数                   |
+| taker_buy_volume       | decimal  | 主动买入成交量（基础资产） |
+| taker_buy_quote_volume | decimal  | 主动买入成交额（报价资产） |
+| ignore                 | int      | 忽略字段（通常为0）        |
 
 ### 聚合交易数据 (aggTrades)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| agg_trade_id | long | 聚合交易ID |
-| price | decimal | 成交价格 |
-| quantity | decimal | 成交数量 |
-| first_trade_id | long | 首个交易ID |
-| last_trade_id | long | 末个交易ID |
-| transact_time | long | 成交时间戳（毫秒） |
-| is_buyer_maker | boolean | 买方是否为挂单方 |
+| 字段名         | 数据类型 | 说明               |
+| -------------- | -------- | ------------------ |
+| agg_trade_id   | long     | 聚合交易ID         |
+| price          | decimal  | 成交价格           |
+| quantity       | decimal  | 成交数量           |
+| first_trade_id | long     | 首个交易ID         |
+| last_trade_id  | long     | 末个交易ID         |
+| transact_time  | long     | 成交时间戳（毫秒） |
+| is_buyer_maker | boolean  | 买方是否为挂单方   |
 
 ### 单笔交易数据 (trades)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| id | long | 交易ID |
-| price | decimal | 成交价格 |
-| qty | decimal | 成交数量 |
-| quote_qty | decimal | 成交金额 |
-| time | long | 成交时间戳（毫秒） |
-| is_buyer_maker | boolean | 买方是否为挂单方 |
+| 字段名         | 数据类型 | 说明               |
+| -------------- | -------- | ------------------ |
+| id             | long     | 交易ID             |
+| price          | decimal  | 成交价格           |
+| qty            | decimal  | 成交数量           |
+| quote_qty      | decimal  | 成交金额           |
+| time           | long     | 成交时间戳（毫秒） |
+| is_buyer_maker | boolean  | 买方是否为挂单方   |
 
 ### 最优挂单 (bookTicker)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| update_id | long | 更新ID |
-| best_bid_price | decimal | 最优买价 |
-| best_bid_qty | decimal | 最优买量 |
-| best_ask_price | decimal | 最优卖价 |
-| best_ask_qty | decimal | 最优卖量 |
-| transaction_time | long | 交易时间戳（毫秒） |
-| event_time | long | 事件时间戳（毫秒） |
+| 字段名           | 数据类型 | 说明               |
+| ---------------- | -------- | ------------------ |
+| update_id        | long     | 更新ID             |
+| best_bid_price   | decimal  | 最优买价           |
+| best_bid_qty     | decimal  | 最优买量           |
+| best_ask_price   | decimal  | 最优卖价           |
+| best_ask_qty     | decimal  | 最优卖量           |
+| transaction_time | long     | 交易时间戳（毫秒） |
+| event_time       | long     | 事件时间戳（毫秒） |
 
 ### 订单簿深度 (bookDepth)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| timestamp | datetime | 时间戳 |
-| percentage | float | 价格偏离百分比 |
-| depth | decimal | 累计挂单数量 |
-| notional | decimal | 累计挂单金额 |
+| 字段名     | 数据类型 | 说明           |
+| ---------- | -------- | -------------- |
+| timestamp  | datetime | 时间戳         |
+| percentage | float    | 价格偏离百分比 |
+| depth      | decimal  | 累计挂单数量   |
+| notional   | decimal  | 累计挂单金额   |
 
 ### 交易指标 (metrics)
 
-| 字段名 | 数据类型 | 说明 |
-|--------|----------|------|
-| create_time | datetime | 创建时间 |
-| symbol | string | 交易对符号 |
-| sum_open_interest | decimal | 总持仓量 |
-| sum_open_interest_value | decimal | 总持仓价值 |
-| count_toptrader_long_short_ratio | decimal | 大户多空比例计数 |
-| sum_toptrader_long_short_ratio | decimal | 大户多空比例总和 |
-| count_long_short_ratio | decimal | 账户多空比例计数 |
-| sum_taker_long_short_vol_ratio | decimal | 主动成交多空比例总和 |
+| 字段名                           | 数据类型 | 说明                 |
+| -------------------------------- | -------- | -------------------- |
+| create_time                      | datetime | 创建时间             |
+| symbol                           | string   | 交易对符号           |
+| sum_open_interest                | decimal  | 总持仓量             |
+| sum_open_interest_value          | decimal  | 总持仓价值           |
+| count_toptrader_long_short_ratio | decimal  | 大户多空比例计数     |
+| sum_toptrader_long_short_ratio   | decimal  | 大户多空比例总和     |
+| count_long_short_ratio           | decimal  | 账户多空比例计数     |
+| sum_taker_long_short_vol_ratio   | decimal  | 主动成交多空比例总和 |
 
 ## ETL 性能特性
 
